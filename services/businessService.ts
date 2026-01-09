@@ -2,6 +2,10 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { BusinessLead, SearchQuery } from "../types";
 
+/**
+ * Enhanced Lead Finder using Gemini 3 Pro with Grounded Search.
+ * Focuses on accuracy and preventing hallucinations in contact details.
+ */
 export async function findBusinessLeads(
   query: SearchQuery,
   userLocation?: { lat: number; lng: number }
@@ -9,7 +13,7 @@ export async function findBusinessLeads(
   const apiKey = process.env.API_KEY;
   
   if (!apiKey || apiKey === "undefined" || apiKey === "") {
-    throw new Error("API_KEY_MISSING: Please add your Gemini API Key to your Deployment Environment Variables.");
+    throw new Error("API_KEY_MISSING: Please ensure your Gemini API Key is correctly configured.");
   }
 
   const ai = new GoogleGenAI({ apiKey });
@@ -17,21 +21,29 @@ export async function findBusinessLeads(
 
   const categoriesStr = categories.join(', ');
   
-  const systemInstruction = `You are a Professional Lead Intelligence Auditor.
-Your objective is to find high-quality business leads for "${categoriesStr}" in "${city}, India".
+  // System instruction is critical to enforce the "No Fake Data" rule
+  const systemInstruction = `You are a high-accuracy Lead Intelligence Specialist.
+Your task is to find businesses in "${city}, India" for the category "${categoriesStr}".
 
-STRICT DATA EXTRACTION RULES (MANDATORY):
-1. SOURCE VERIFICATION: You MUST use the Google Search tool to find live Google Business Profiles.
-2. ACCURACY: Extract the ACTUAL "formatted_phone_number" field from the Google listing. 
-3. NO HALLUCINATION: If a phone number is NOT found on the official profile, return null. DO NOT guess or provide placeholders like "0000000000".
-4. REAL DETAILS ONLY: Only return details (Email, Website) if they are explicitly listed on the business profile or their official website.
-5. QUANTITY: Provide a list of up to 30 highly verified businesses.
-6. FORMAT: Output only a clean JSON array of lead objects.`;
+ACCURACY PROTOCOL:
+1. SEARCH: You MUST use the googleSearch tool for every business to verify its details.
+2. PHONE NUMBER: Look for the "Google Business Profile" of each shop. Extract the EXACT "formatted_phone_number". 
+3. NULL POLICY: If the phone number is not explicitly listed on their Google profile, return null. NEVER provide a placeholder or random number.
+4. VALIDATION: Ensure the business is active and located within or near ${city}.
+5. OUTPUT: Provide exactly what you find on the live web. Do not guess.`;
 
-  const prompt = `Find and verify up to 30 business leads for "${categoriesStr}" in "${city}". 
-Use Google Search to ensure the "formatted_phone_number", "website", and "email" are REAL and taken directly from their Google Business Profile. 
-If no contact number is listed on their profile, return null for that field. 
-JSON Fields: name, address, formatted_phone_number, email, website, maps_url, rating, userRatingsTotal, lat, lng.`;
+  const prompt = `Search for 20 verified business leads in "${city}" for categories: "${categoriesStr}".
+For each lead, verify their contact details using Google Search.
+Capture:
+- Business Name
+- Official Phone Number (exactly as on Google Maps profile, else null)
+- Website (verified official URL, else null)
+- Email (only if found on their site/profile, else null)
+- Rating and total reviews
+- Physical Address
+- Latitude/Longitude
+
+Return a JSON array of objects.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -51,7 +63,7 @@ JSON Fields: name, address, formatted_phone_number, email, website, maps_url, ra
               formatted_phone_number: { 
                 type: Type.STRING, 
                 nullable: true,
-                description: "Exact contact number from Google Profile."
+                description: "Official phone number from the Google Maps profile."
               },
               email: { type: Type.STRING, nullable: true },
               website: { type: Type.STRING, nullable: true },
@@ -67,39 +79,37 @@ JSON Fields: name, address, formatted_phone_number, email, website, maps_url, ra
       }
     });
 
-    let text = response.text || "";
+    const text = response.text || "";
+    // Robust JSON extraction in case the model returns extra text
     const jsonMatch = text.match(/\[[\s\S]*\]/);
-    if (jsonMatch) text = jsonMatch[0];
+    const cleanedJson = jsonMatch ? jsonMatch[0] : text;
 
-    const results = JSON.parse(text);
-    if (!Array.isArray(results)) return [];
+    let results = JSON.parse(cleanedJson);
+    if (!Array.isArray(results)) {
+      if (typeof results === 'object' && results !== null) {
+        results = [results];
+      } else {
+        return [];
+      }
+    }
 
     return results.map((item: any, index: number) => {
-      const lat = Number(item.lat) || 0;
-      const lng = Number(item.lng) || 0;
-      const name = item.name || "Business Name";
-      const address = item.address || "Address not available";
-
-      // Post-extraction sanitization to block AI hallucinations
+      const name = item.name || "Unknown Business";
+      const address = item.address || "Address not found";
+      
+      // Secondary check to filter out obviously fake phone numbers generated by AI
       let phone = item.formatted_phone_number ? String(item.formatted_phone_number).trim() : null;
       if (phone) {
-        const lowerPhone = phone.toLowerCase();
-        const cleanDigits = phone.replace(/[^0-9]/g, '');
+        const digitsOnly = phone.replace(/[^0-9]/g, '');
+        // Block common hallucinated patterns (e.g., 1234567890, 0000000000, 9999999999)
         if (
-          lowerPhone.includes('null') || 
-          lowerPhone.includes('n/a') || 
-          lowerPhone.includes('none') || 
-          lowerPhone.includes('available') ||
-          cleanDigits.length < 8 ||
-          /^(.)\1+$/.test(cleanDigits)
+          digitsOnly.length < 8 || 
+          /^(.)\1+$/.test(digitsOnly) || 
+          digitsOnly === '1234567890' ||
+          phone.toLowerCase().includes('not available')
         ) {
           phone = null;
         }
-      }
-
-      let email = item.email ? String(item.email).trim() : null;
-      if (email && (email.toLowerCase().includes('example') || !email.includes('@'))) {
-        email = null;
       }
 
       return {
@@ -108,11 +118,11 @@ JSON Fields: name, address, formatted_phone_number, email, website, maps_url, ra
         address,
         phone,
         website: item.website || null,
-        email: email,
+        email: item.email || null,
         owner: null,
-        lat,
-        lng,
-        distance: null,
+        lat: Number(item.lat) || 0,
+        lng: Number(item.lng) || 0,
+        distance: null, // Will be calculated in UI component
         source: 'Google Search',
         mapsUrl: item.maps_url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name + ' ' + address)}`,
         lastUpdated: new Date().toISOString().split('T')[0],
@@ -122,18 +132,21 @@ JSON Fields: name, address, formatted_phone_number, email, website, maps_url, ra
     });
 
   } catch (error: any) {
-    console.error("API Error:", error);
-    // Return empty array to trigger the "No results found" UI state
+    console.error("Critical Generation Error:", error);
+    // If it's a JSON parse error, it means the model output was garbage. 
+    // Return empty so the UI shows the 'No Results' state instead of crashing.
     return [];
   }
 }
 
 export function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   if (!lat1 || !lon1 || !lat2 || !lon2) return 0;
-  const R = 6371;
+  const R = 6371; // Earth's radius in km
   const dLat = (lat2 - lat1) * (Math.PI / 180);
   const dLon = (lon2 - lon1) * (Math.PI / 180);
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + 
+            Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) * 
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 }
