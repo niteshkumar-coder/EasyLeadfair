@@ -34,7 +34,6 @@ const App: React.FC = () => {
   const progressIntervalRef = useRef<number | null>(null);
 
   useEffect(() => {
-    // Load Current User
     const savedUser = localStorage.getItem('easylead_user');
     if (savedUser) {
       try {
@@ -44,7 +43,6 @@ const App: React.FC = () => {
       }
     }
 
-    // Load All Users for Admin
     const savedAllUsers = localStorage.getItem('easylead_all_users');
     if (savedAllUsers) {
       try {
@@ -72,20 +70,21 @@ const App: React.FC = () => {
       setProgress(0);
       setSimulatedLeads(0);
       const messages = [
-        "Verifying business location...",
-        "Scanning Google Maps profile...",
-        "Validating official contact number...",
-        "Checking website connectivity...",
-        "Retrieving user reviews...",
-        "Finalizing verified leads..."
+        "Connecting to Search Grounding API...",
+        "Searching local Indian business directories...",
+        "Identifying physical locations in city...",
+        "Verifying official contact profiles...",
+        "Cross-referencing verified websites...",
+        "Compiling data intelligence reports...",
+        "Finalizing verified lead list..."
       ];
       tickerIntervalRef.current = window.setInterval(() => {
         setTickerMessage(messages[Math.floor(Math.random() * messages.length)]);
-      }, 1500);
+      }, 2000);
       progressIntervalRef.current = window.setInterval(() => {
-        setProgress(prev => (prev >= 98 ? prev : prev + 1));
-        setSimulatedLeads(prev => (prev >= 20 ? prev : Math.random() > 0.7 ? prev + 1 : prev));
-      }, 200);
+        setProgress(prev => (prev >= 98 ? prev : prev + (prev < 50 ? 0.8 : 0.4)));
+        setSimulatedLeads(prev => (prev >= 15 ? prev : Math.random() > 0.8 ? prev + 1 : prev));
+      }, 150);
     } else {
       if (tickerIntervalRef.current) clearInterval(tickerIntervalRef.current);
       if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
@@ -99,25 +98,19 @@ const App: React.FC = () => {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
-
     if (!authForm.name || !authForm.email) return;
-
     if (!authForm.email.toLowerCase().endsWith('@gmail.com')) {
       setLoginError("Access Restricted: Only @gmail.com addresses are permitted.");
       return;
     }
-
     const newUser = { name: authForm.name, email: authForm.email.toLowerCase() };
     setUser(newUser);
     localStorage.setItem('easylead_user', JSON.stringify(newUser));
-
-    // Save to all users log
     const savedAllUsersStr = localStorage.getItem('easylead_all_users');
     let currentLogs: User[] = [];
     try {
       currentLogs = savedAllUsersStr ? JSON.parse(savedAllUsersStr) : [];
     } catch (e) {}
-
     if (!currentLogs.some(u => u.email === newUser.email)) {
       const updatedAll = [...currentLogs, newUser];
       setAllUsers(updatedAll);
@@ -169,17 +162,16 @@ const App: React.FC = () => {
         setLeads(processed);
         setLoading(false);
         if (processed.length === 0) {
-          setError(`No verified businesses found for "${searchCategories.join(", ")}" in ${searchCity}. This happens when Gemini cannot find explicit, verified contact data on official Google Profiles. Try refining your search or selecting a more specific category.`);
+          setError(`We couldn't find any highly verified "${searchCategories.join(", ")}" in ${searchCity} right now. Gemini Search requires a high level of verification (like a phone or website) to list a business. Try a broader category like "Restaurant" or "Retail" to test the system.`);
         }
       }, 500);
     } catch (err: any) {
       console.error(err);
-      setError(err.message || "An unexpected error occurred. Please try searching for a different category.");
+      setError(err.message || "An unexpected system error occurred. Please try searching for a different business category.");
       setLoading(false);
     }
   }, [userCoords]);
 
-  // UI rendering logic remains the same as provided in previous full context
   if (isAdminMode) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col p-8">
@@ -365,12 +357,15 @@ const App: React.FC = () => {
             <div className="w-full max-w-2xl bg-slate-900/50 border border-slate-800/50 p-12 rounded-[3rem] text-center shadow-3xl flex flex-col items-center gap-8">
               <div className="w-24 h-24 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
               <div className="space-y-4">
-                <h3 className="text-4xl font-black text-white tracking-tight">Verifying Leads...</h3>
+                <h3 className="text-4xl font-black text-white tracking-tight">Generating Leads...</h3>
                 <p className="text-slate-400 font-medium italic">{tickerMessage}</p>
                 <div className="h-3 w-full bg-slate-800 rounded-full overflow-hidden mt-6">
                   <div className="h-full bg-indigo-600 transition-all duration-300 ease-out" style={{ width: `${progress}%` }}></div>
                 </div>
-                <p className="text-indigo-500 font-black mt-2 text-xl">{Math.round(progress)}%</p>
+                <div className="flex justify-between w-full text-[10px] font-black text-slate-600 uppercase tracking-widest">
+                  <span>Progress: {Math.round(progress)}%</span>
+                  <span>Detected: {simulatedLeads}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -393,12 +388,12 @@ const App: React.FC = () => {
             <div className="flex flex-col lg:flex-row justify-between items-end gap-6">
               <div className="space-y-2">
                 <h2 className="text-3xl font-black text-white">Verified Leads for <span className="text-indigo-500">{lastQuery?.categories.join(", ")}</span></h2>
-                <p className="text-slate-500 font-medium">Found {leads.length} matches in {lastQuery?.city}</p>
+                <p className="text-slate-500 font-medium">Found {leads.length} high-quality matches in {lastQuery?.city}</p>
               </div>
               <div className="flex gap-3">
-                <button onClick={() => setViewMode('table')} className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${viewMode === 'table' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-500'}`}>Table</button>
-                <button onClick={() => setViewMode('map')} className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${viewMode === 'map' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-500'}`}>Map</button>
-                <button onClick={() => exportToCSV(leads)} className="px-5 py-2.5 bg-slate-900 text-slate-400 border border-slate-800 rounded-xl text-xs font-bold hover:text-white">Export CSV</button>
+                <button onClick={() => setViewMode('table')} className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${viewMode === 'table' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}>Table</button>
+                <button onClick={() => setViewMode('map')} className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${viewMode === 'map' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}>Map</button>
+                <button onClick={() => exportToCSV(leads)} className="px-5 py-2.5 bg-slate-900 text-slate-400 border border-slate-800 rounded-xl text-xs font-bold hover:text-white transition-colors">Export CSV</button>
               </div>
             </div>
             
@@ -409,10 +404,10 @@ const App: React.FC = () => {
         ) : (
           <div className="min-h-[60vh] flex flex-col items-center justify-center text-center">
             <div className="w-24 h-24 bg-slate-900 rounded-[2.5rem] flex items-center justify-center mb-10 border border-slate-800 shadow-2xl animate-bounce">
-              <i className="fa-solid fa-bolt text-slate-700 text-4xl"></i>
+              <i className="fa-solid fa-bolt text-indigo-500 text-4xl"></i>
             </div>
-            <h2 className="text-4xl font-black text-white mb-4 tracking-tight">Generate Verified Leads</h2>
-            <p className="text-slate-500 max-w-md mx-auto mb-10 text-lg">Search for local businesses and get verified contact information directly from their Google Profiles.</p>
+            <h2 className="text-4xl font-black text-white mb-4 tracking-tight">Verified Indian Leads</h2>
+            <p className="text-slate-500 max-w-md mx-auto mb-10 text-lg">Harness Gemini Search to find accurate business data across 100+ cities and 120+ categories.</p>
             <button 
               onClick={() => setIsSearchModalOpen(true)}
               className="px-12 py-5 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-3xl transition-all shadow-2xl shadow-indigo-600/30"
@@ -424,7 +419,7 @@ const App: React.FC = () => {
       </main>
 
       <footer className="bg-slate-950 border-t border-slate-900 py-10 px-6 text-center text-slate-700 text-[10px] font-black uppercase tracking-widest mt-auto">
-        <p>© 2024 EasyLead Intelligence | Powered by Gemini Grounding</p>
+        <p>© 2024 EasyLead Intelligence | Powered by Gemini Grounded Search</p>
       </footer>
 
       <SearchModal 

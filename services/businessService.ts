@@ -4,7 +4,7 @@ import { BusinessLead, SearchQuery } from "../types";
 
 /**
  * Enhanced Lead Finder using Gemini 3 Pro with Grounded Search.
- * Focuses on accuracy and preventing hallucinations in contact details.
+ * Optimized for resilience and discovery in Indian cities.
  */
 export async function findBusinessLeads(
   query: SearchQuery,
@@ -13,37 +13,36 @@ export async function findBusinessLeads(
   const apiKey = process.env.API_KEY;
   
   if (!apiKey || apiKey === "undefined" || apiKey === "") {
-    throw new Error("API_KEY_MISSING: Please ensure your Gemini API Key is correctly configured.");
+    throw new Error("API_KEY_MISSING: The Gemini API Key is missing. Please check your deployment settings.");
   }
 
   const ai = new GoogleGenAI({ apiKey });
   const { city, categories, radius } = query;
-
   const categoriesStr = categories.join(', ');
   
-  // System instruction is critical to enforce the "No Fake Data" rule
-  const systemInstruction = `You are a high-accuracy Lead Intelligence Specialist.
-Your task is to find businesses in "${city}, India" for the category "${categoriesStr}".
+  // Refined instructions: be accurate but don't fail if you can't find a high count.
+  const systemInstruction = `You are an expert Indian Business Intelligence Agent.
+Your mission is to discover and verify active businesses in "${city}, India" for categories: "${categoriesStr}".
 
-ACCURACY PROTOCOL:
-1. SEARCH: You MUST use the googleSearch tool for every business to verify its details.
-2. PHONE NUMBER: Look for the "Google Business Profile" of each shop. Extract the EXACT "formatted_phone_number". 
-3. NULL POLICY: If the phone number is not explicitly listed on their Google profile, return null. NEVER provide a placeholder or random number.
-4. VALIDATION: Ensure the business is active and located within or near ${city}.
-5. OUTPUT: Provide exactly what you find on the live web. Do not guess.`;
+SEARCH PROTOCOL:
+1. Use the googleSearch tool to perform multiple detailed queries for "${categoriesStr} in ${city}".
+2. Look for official Google Business Profiles, Justdial listings, and local directories.
+3. Extract real contact numbers, websites, and physical addresses.
+4. If a specific field (like phone or email) is not found, use null.
+5. Avoid hallucinations. Only return businesses you can confirm actually exist in ${city}.
+6. Prioritize quality and verification over quantity. If you find only 5 highly verified leads, return those 5 rather than returning nothing.`;
 
-  const prompt = `Search for 20 verified business leads in "${city}" for categories: "${categoriesStr}".
-For each lead, verify their contact details using Google Search.
-Capture:
-- Business Name
-- Official Phone Number (exactly as on Google Maps profile, else null)
-- Website (verified official URL, else null)
-- Email (only if found on their site/profile, else null)
-- Rating and total reviews
+  const prompt = `Find as many verified business leads as possible (up to 20) for "${categoriesStr}" in the city of "${city}".
+Provide:
+- Business name
+- Formatted contact number (from Google Maps/Profile)
+- Verified Website URL
+- Official Email (if available)
 - Physical Address
-- Latitude/Longitude
+- Rating and review count
+- Map Latitude and Longitude for plotting.
 
-Return a JSON array of objects.`;
+Ensure all businesses are physically located within or very close to ${city}, India.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -51,6 +50,7 @@ Return a JSON array of objects.`;
       contents: prompt,
       config: {
         systemInstruction,
+        thinkingConfig: { thinkingBudget: 8000 }, // Added thinking budget to improve data quality and verification
         tools: [{ googleSearch: {} }],
         responseMimeType: "application/json",
         responseSchema: {
@@ -63,7 +63,7 @@ Return a JSON array of objects.`;
               formatted_phone_number: { 
                 type: Type.STRING, 
                 nullable: true,
-                description: "Official phone number from the Google Maps profile."
+                description: "The business phone number found on Google Maps."
               },
               email: { type: Type.STRING, nullable: true },
               website: { type: Type.STRING, nullable: true },
@@ -80,51 +80,38 @@ Return a JSON array of objects.`;
     });
 
     const text = response.text || "";
-    // Robust JSON extraction in case the model returns extra text
     const jsonMatch = text.match(/\[[\s\S]*\]/);
     const cleanedJson = jsonMatch ? jsonMatch[0] : text;
 
     let results = JSON.parse(cleanedJson);
     if (!Array.isArray(results)) {
-      if (typeof results === 'object' && results !== null) {
-        results = [results];
-      } else {
-        return [];
-      }
+      results = results ? [results] : [];
     }
 
     return results.map((item: any, index: number) => {
-      const name = item.name || "Unknown Business";
-      const address = item.address || "Address not found";
-      
-      // Secondary check to filter out obviously fake phone numbers generated by AI
+      // Basic sanitization
       let phone = item.formatted_phone_number ? String(item.formatted_phone_number).trim() : null;
       if (phone) {
-        const digitsOnly = phone.replace(/[^0-9]/g, '');
-        // Block common hallucinated patterns (e.g., 1234567890, 0000000000, 9999999999)
-        if (
-          digitsOnly.length < 8 || 
-          /^(.)\1+$/.test(digitsOnly) || 
-          digitsOnly === '1234567890' ||
-          phone.toLowerCase().includes('not available')
-        ) {
+        const digits = phone.replace(/[^0-9]/g, '');
+        // Filter out common AI-generated placeholders
+        if (digits.length < 8 || /^(.)\1+$/.test(digits) || digits === '1234567890') {
           phone = null;
         }
       }
 
       return {
         id: `lead-${Date.now()}-${index}`,
-        name,
-        address,
+        name: item.name || "Business",
+        address: item.address || "No address found",
         phone,
         website: item.website || null,
         email: item.email || null,
         owner: null,
         lat: Number(item.lat) || 0,
         lng: Number(item.lng) || 0,
-        distance: null, // Will be calculated in UI component
+        distance: null,
         source: 'Google Search',
-        mapsUrl: item.maps_url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name + ' ' + address)}`,
+        mapsUrl: item.maps_url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.name + ' ' + item.address)}`,
         lastUpdated: new Date().toISOString().split('T')[0],
         rating: item.rating || null,
         userRatingsTotal: item.userRatingsTotal || null
@@ -132,16 +119,15 @@ Return a JSON array of objects.`;
     });
 
   } catch (error: any) {
-    console.error("Critical Generation Error:", error);
-    // If it's a JSON parse error, it means the model output was garbage. 
-    // Return empty so the UI shows the 'No Results' state instead of crashing.
-    return [];
+    console.error("Search failed:", error);
+    // Rethrow to allow App.tsx to handle the specific error message
+    throw new Error(error.message || "The AI search engine encountered an issue. Please try again with a simpler category.");
   }
 }
 
 export function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   if (!lat1 || !lon1 || !lat2 || !lon2) return 0;
-  const R = 6371; // Earth's radius in km
+  const R = 6371; 
   const dLat = (lat2 - lat1) * (Math.PI / 180);
   const dLon = (lon2 - lon1) * (Math.PI / 180);
   const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + 
