@@ -1,0 +1,7 @@
+{
+  "name": "Real EasyLead",
+  "description": "A professional business lead generation tool that utilizes Gemini's Google Maps and Search grounding to find local businesses, contact details, and calculate distances.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
