@@ -2,10 +2,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { BusinessLead, SearchQuery } from "../types";
 
-/**
- * Enhanced Lead Finder using Gemini 3 Pro with Grounded Search.
- * Optimized for resilience and discovery in Indian cities.
- */
 export async function findBusinessLeads(
   query: SearchQuery,
   userLocation?: { lat: number; lng: number }
@@ -13,44 +9,28 @@ export async function findBusinessLeads(
   const apiKey = process.env.API_KEY;
   
   if (!apiKey || apiKey === "undefined" || apiKey === "") {
-    throw new Error("API_KEY_MISSING: The Gemini API Key is missing. Please check your deployment settings.");
+    throw new Error("API_KEY_MISSING");
   }
 
+  // Use a fresh instance to ensure the most up-to-date key from selection dialog is used
   const ai = new GoogleGenAI({ apiKey });
-  const { city, categories, radius } = query;
+  const { city, categories } = query;
   const categoriesStr = categories.join(', ');
   
-  // Refined instructions: be accurate but don't fail if you can't find a high count.
   const systemInstruction = `You are an expert Indian Business Intelligence Agent.
-Your mission is to discover and verify active businesses in "${city}, India" for categories: "${categoriesStr}".
+Search for active businesses in "${city}, India" for "${categoriesStr}".
+Use the googleSearch tool to verify details.
+Return only verified leads with real phone numbers and locations.`;
 
-SEARCH PROTOCOL:
-1. Use the googleSearch tool to perform multiple detailed queries for "${categoriesStr} in ${city}".
-2. Look for official Google Business Profiles, Justdial listings, and local directories.
-3. Extract real contact numbers, websites, and physical addresses.
-4. If a specific field (like phone or email) is not found, use null.
-5. Avoid hallucinations. Only return businesses you can confirm actually exist in ${city}.
-6. Prioritize quality and verification over quantity. If you find only 5 highly verified leads, return those 5 rather than returning nothing.`;
-
-  const prompt = `Find as many verified business leads as possible (up to 20) for "${categoriesStr}" in the city of "${city}".
-Provide:
-- Business name
-- Formatted contact number (from Google Maps/Profile)
-- Verified Website URL
-- Official Email (if available)
-- Physical Address
-- Rating and review count
-- Map Latitude and Longitude for plotting.
-
-Ensure all businesses are physically located within or very close to ${city}, India.`;
+  const prompt = `Find up to 20 verified business leads for "${categoriesStr}" in "${city}".
+Provide: name, formatted_phone_number, website, email, address, rating, userRatingsTotal, lat, lng.`;
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview",
+      model: "gemini-3-flash-preview", // Switched to Flash for better quota/rate-limits on search grounding
       contents: prompt,
       config: {
         systemInstruction,
-        thinkingConfig: { thinkingBudget: 8000 }, // Added thinking budget to improve data quality and verification
         tools: [{ googleSearch: {} }],
         responseMimeType: "application/json",
         responseSchema: {
@@ -60,14 +40,9 @@ Ensure all businesses are physically located within or very close to ${city}, In
             properties: {
               name: { type: Type.STRING },
               address: { type: Type.STRING },
-              formatted_phone_number: { 
-                type: Type.STRING, 
-                nullable: true,
-                description: "The business phone number found on Google Maps."
-              },
+              formatted_phone_number: { type: Type.STRING, nullable: true },
               email: { type: Type.STRING, nullable: true },
               website: { type: Type.STRING, nullable: true },
-              maps_url: { type: Type.STRING, nullable: true },
               lat: { type: Type.NUMBER },
               lng: { type: Type.NUMBER },
               rating: { type: Type.NUMBER, nullable: true },
@@ -82,46 +57,34 @@ Ensure all businesses are physically located within or very close to ${city}, In
     const text = response.text || "";
     const jsonMatch = text.match(/\[[\s\S]*\]/);
     const cleanedJson = jsonMatch ? jsonMatch[0] : text;
-
     let results = JSON.parse(cleanedJson);
-    if (!Array.isArray(results)) {
-      results = results ? [results] : [];
-    }
+    if (!Array.isArray(results)) results = results ? [results] : [];
 
-    return results.map((item: any, index: number) => {
-      // Basic sanitization
-      let phone = item.formatted_phone_number ? String(item.formatted_phone_number).trim() : null;
-      if (phone) {
-        const digits = phone.replace(/[^0-9]/g, '');
-        // Filter out common AI-generated placeholders
-        if (digits.length < 8 || /^(.)\1+$/.test(digits) || digits === '1234567890') {
-          phone = null;
-        }
-      }
-
-      return {
-        id: `lead-${Date.now()}-${index}`,
-        name: item.name || "Business",
-        address: item.address || "No address found",
-        phone,
-        website: item.website || null,
-        email: item.email || null,
-        owner: null,
-        lat: Number(item.lat) || 0,
-        lng: Number(item.lng) || 0,
-        distance: null,
-        source: 'Google Search',
-        mapsUrl: item.maps_url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.name + ' ' + item.address)}`,
-        lastUpdated: new Date().toISOString().split('T')[0],
-        rating: item.rating || null,
-        userRatingsTotal: item.userRatingsTotal || null
-      };
-    });
+    return results.map((item: any, index: number) => ({
+      id: `lead-${Date.now()}-${index}`,
+      name: item.name || "Business",
+      address: item.address || "Address not available",
+      phone: item.formatted_phone_number || null,
+      website: item.website || null,
+      email: item.email || null,
+      lat: Number(item.lat) || 0,
+      lng: Number(item.lng) || 0,
+      distance: null,
+      source: 'Google Search',
+      mapsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.name + ' ' + item.address)}`,
+      lastUpdated: new Date().toISOString().split('T')[0],
+      rating: item.rating || null,
+      userRatingsTotal: item.userRatingsTotal || null
+    }));
 
   } catch (error: any) {
-    console.error("Search failed:", error);
-    // Rethrow to allow App.tsx to handle the specific error message
-    throw new Error(error.message || "The AI search engine encountered an issue. Please try again with a simpler category.");
+    console.error("API Error Details:", error);
+    // Specifically catch Quota/Rate Limit errors
+    const errorMessage = error.message || "";
+    if (errorMessage.includes("429") || errorMessage.includes("RESOURCE_EXHAUSTED") || errorMessage.includes("quota")) {
+      throw new Error("QUOTA_EXCEEDED");
+    }
+    throw error;
   }
 }
 

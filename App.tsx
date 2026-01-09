@@ -15,6 +15,7 @@ const App: React.FC = () => {
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [quotaExceeded, setQuotaExceeded] = useState(false);
   const [leads, setLeads] = useState<BusinessLead[]>([]);
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [progress, setProgress] = useState(0);
@@ -71,20 +72,18 @@ const App: React.FC = () => {
       setSimulatedLeads(0);
       const messages = [
         "Connecting to Search Grounding API...",
-        "Searching local Indian business directories...",
-        "Identifying physical locations in city...",
+        "Identifying physical locations...",
         "Verifying official contact profiles...",
-        "Cross-referencing verified websites...",
         "Compiling data intelligence reports...",
         "Finalizing verified lead list..."
       ];
       tickerIntervalRef.current = window.setInterval(() => {
         setTickerMessage(messages[Math.floor(Math.random() * messages.length)]);
-      }, 2000);
+      }, 1500);
       progressIntervalRef.current = window.setInterval(() => {
-        setProgress(prev => (prev >= 98 ? prev : prev + (prev < 50 ? 0.8 : 0.4)));
+        setProgress(prev => (prev >= 98 ? prev : prev + (prev < 50 ? 1 : 0.5)));
         setSimulatedLeads(prev => (prev >= 15 ? prev : Math.random() > 0.8 ? prev + 1 : prev));
-      }, 150);
+      }, 200);
     } else {
       if (tickerIntervalRef.current) clearInterval(tickerIntervalRef.current);
       if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
@@ -138,8 +137,21 @@ const App: React.FC = () => {
     }
   };
 
+  const handleSelectApiKey = async () => {
+    try {
+      // @ts-ignore
+      await window.aistudio.openSelectKey();
+      // After selecting, we reset errors and let the user try again
+      setQuotaExceeded(false);
+      setError(null);
+    } catch (e) {
+      console.error("Key selection failed", e);
+    }
+  };
+
   const performSearch = useCallback(async (searchCity: string, searchCategories: string[], searchRadius: number) => {
     setLoading(true);
+    setQuotaExceeded(false);
     setIsSearchModalOpen(false);
     setError(null);
     setLeads([]); 
@@ -162,13 +174,17 @@ const App: React.FC = () => {
         setLeads(processed);
         setLoading(false);
         if (processed.length === 0) {
-          setError(`We couldn't find any highly verified "${searchCategories.join(", ")}" in ${searchCity} right now. Gemini Search requires a high level of verification (like a phone or website) to list a business. Try a broader category like "Restaurant" or "Retail" to test the system.`);
+          setError(`No verified businesses found for "${searchCategories.join(", ")}" in ${searchCity}. Try searching for a broader category.`);
         }
       }, 500);
     } catch (err: any) {
-      console.error(err);
-      setError(err.message || "An unexpected system error occurred. Please try searching for a different business category.");
+      console.error("Search Error:", err);
       setLoading(false);
+      if (err.message === "QUOTA_EXCEEDED") {
+        setQuotaExceeded(true);
+      } else {
+        setError(err.message || "An unexpected error occurred. Please try again.");
+      }
     }
   }, [userCoords]);
 
@@ -368,6 +384,36 @@ const App: React.FC = () => {
                 </div>
               </div>
             </div>
+          </div>
+        ) : quotaExceeded ? (
+          <div className="min-h-[50vh] flex flex-col items-center justify-center text-center p-12 bg-indigo-600/5 border border-indigo-500/20 rounded-[3rem] shadow-2xl">
+              <div className="w-24 h-24 bg-indigo-600/20 border border-indigo-500/40 rounded-3xl flex items-center justify-center mb-8">
+                <i className="fa-solid fa-gauge-high text-indigo-400 text-4xl"></i>
+              </div>
+              <h3 className="text-3xl font-black text-white mb-4">API Quota Exceeded</h3>
+              <p className="text-slate-400 mb-6 max-w-md mx-auto leading-relaxed">
+                The free search quota for this model has been reached. To continue, please select a **Paid API Key** from your own Google Cloud project.
+              </p>
+              <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-10 bg-indigo-500/10 px-4 py-2 rounded-lg">
+                <i className="fa-solid fa-circle-info mr-2"></i> Ensure your project has billing enabled.
+              </p>
+              
+              <div className="flex flex-col sm:flex-row gap-4">
+                <button 
+                  onClick={handleSelectApiKey}
+                  className="px-10 py-5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black transition-all shadow-xl shadow-indigo-600/20 flex items-center gap-3"
+                >
+                  <i className="fa-solid fa-key"></i> Select Paid API Key
+                </button>
+                <a 
+                  href="https://ai.google.dev/gemini-api/docs/billing" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="px-10 py-5 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-black transition-all flex items-center gap-3"
+                >
+                  <i className="fa-solid fa-file-invoice-dollar"></i> Billing Info
+                </a>
+              </div>
           </div>
         ) : error ? (
            <div className="min-h-[50vh] flex flex-col items-center justify-center text-center p-10 bg-slate-900/30 border border-slate-800/50 rounded-[3rem]">
