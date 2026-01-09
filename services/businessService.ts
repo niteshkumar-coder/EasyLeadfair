@@ -18,28 +18,24 @@ export async function findBusinessLeads(
   const categoriesStr = categories.join(', ');
   
   const systemInstruction = `You are a Professional Lead Intelligence Auditor.
-Your objective is to find 100 high-quality business leads for "${categoriesStr}" in "${city}, India".
+Your objective is to find high-quality business leads for "${categoriesStr}" in "${city}, India".
 
 STRICT DATA EXTRACTION RULES (MANDATORY):
-1. SOURCE VERIFICATION: You MUST use the Google Search tool to cross-reference every business. Look specifically for their official Google Business Profile.
-2. PRIMARY CONTACT: Extract ONLY the actual "formatted_phone_number" field found on the listing. 
-3. NO HALLUCINATION: If a phone number is NOT found on the listing, you MUST return null. 
-4. FORBIDDEN ACTIONS: 
-   - Never provide a random or placeholder number (e.g., "0000000000", "9999999999").
-   - Never provide "Not Available" as a string value for phone/email; return null instead.
-   - Never guess an email. Only provide verified emails found on the official profile or website.
-5. GROUNDING: Ensure the business is physically located in or very near to ${city}.
+1. SOURCE VERIFICATION: You MUST use the Google Search tool to find live Google Business Profiles.
+2. ACCURACY: Extract the ACTUAL "formatted_phone_number" field from the Google listing. 
+3. NO HALLUCINATION: If a phone number is NOT found on the official profile, return null. DO NOT guess or provide placeholders like "0000000000".
+4. REAL DETAILS ONLY: Only return details (Email, Website) if they are explicitly listed on the business profile or their official website.
+5. QUANTITY: Provide a list of up to 30 highly verified businesses.
 6. FORMAT: Output only a clean JSON array of lead objects.`;
 
-  const prompt = `Search for 100 businesses in ${city} for categories: ${categoriesStr}. 
-Verify each listing using Google Search. 
-Capture EXACT "formatted_phone_number" from the Google Profile. 
-If no phone is listed, return "formatted_phone_number": null. 
-Include: "name", "address", "formatted_phone_number", "email", "website", "maps_url", "rating", "userRatingsTotal", "lat", "lng".`;
+  const prompt = `Find and verify up to 30 business leads for "${categoriesStr}" in "${city}". 
+Use Google Search to ensure the "formatted_phone_number", "website", and "email" are REAL and taken directly from their Google Business Profile. 
+If no contact number is listed on their profile, return null for that field. 
+JSON Fields: name, address, formatted_phone_number, email, website, maps_url, rating, userRatingsTotal, lat, lng.`;
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-pro-preview", // Use Pro for superior extraction accuracy
+      model: "gemini-3-pro-preview",
       contents: prompt,
       config: {
         systemInstruction,
@@ -54,8 +50,8 @@ Include: "name", "address", "formatted_phone_number", "email", "website", "maps_
               address: { type: Type.STRING },
               formatted_phone_number: { 
                 type: Type.STRING, 
-                nullable: true, 
-                description: "The official phone number from the Google listing."
+                nullable: true,
+                description: "Exact contact number from Google Profile."
               },
               email: { type: Type.STRING, nullable: true },
               website: { type: Type.STRING, nullable: true },
@@ -95,7 +91,7 @@ Include: "name", "address", "formatted_phone_number", "email", "website", "maps_
           lowerPhone.includes('none') || 
           lowerPhone.includes('available') ||
           cleanDigits.length < 8 ||
-          /^(.)\1+$/.test(cleanDigits) // Catch repeating digits like 0000...
+          /^(.)\1+$/.test(cleanDigits)
         ) {
           phone = null;
         }
@@ -127,6 +123,7 @@ Include: "name", "address", "formatted_phone_number", "email", "website", "maps_
 
   } catch (error: any) {
     console.error("API Error:", error);
+    // Return empty array to trigger the "No results found" UI state
     return [];
   }
 }

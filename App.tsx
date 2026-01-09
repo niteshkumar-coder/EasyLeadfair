@@ -86,9 +86,9 @@ const App: React.FC = () => {
         setTickerMessage(messages[Math.floor(Math.random() * messages.length)]);
       }, 2000);
       progressIntervalRef.current = window.setInterval(() => {
-        setProgress(prev => (prev >= 98 ? prev : prev + (prev < 60 ? 1.2 : 0.3)));
-        setSimulatedLeads(prev => (prev >= 100 ? prev : Math.random() > 0.6 ? prev + 4 : prev));
-      }, 80);
+        setProgress(prev => (prev >= 98 ? prev : prev + (prev < 60 ? 1.5 : 0.5)));
+        setSimulatedLeads(prev => (prev >= 30 ? prev : Math.random() > 0.6 ? prev + 2 : prev));
+      }, 100);
     } else {
       if (tickerIntervalRef.current) clearInterval(tickerIntervalRef.current);
       if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
@@ -183,12 +183,12 @@ const App: React.FC = () => {
         setLeads(processed);
         setLoading(false);
         if (processed.length === 0) {
-          setError(`No results found for ${searchCategories.join(", ")} in ${searchCity}. Try expanding your criteria.`);
+          setError(`No verified results found for "${searchCategories.join(", ")}" in ${searchCity}. Google Search found no direct matches with verified contact data. Try searching for one category at a time.`);
         }
       }, 800);
     } catch (err: any) {
       console.error(err);
-      setError(err.message || "Something went wrong while fetching leads. Please try again.");
+      setError(err.message || "Something went wrong while fetching leads. Please check your internet connection and try again.");
       setLoading(false);
     }
   }, [userCoords]);
@@ -331,7 +331,6 @@ const App: React.FC = () => {
               <div className="h-px flex-1 bg-slate-800"></div>
             </div>
             
-            {/* Very small admin login option - Pointed out to user */}
             <button 
               onClick={() => setIsAdminAuthOpen(true)}
               className="text-[10px] font-black text-slate-700 hover:text-slate-400 transition-colors uppercase tracking-[0.4em] flex items-center gap-2 group"
@@ -341,7 +340,6 @@ const App: React.FC = () => {
             </button>
           </div>
 
-          {/* Admin Auth Modal */}
           {isAdminAuthOpen && (
             <div className="absolute inset-0 z-50 bg-slate-950/95 backdrop-blur-xl rounded-[2.5rem] flex flex-col items-center justify-center p-8 animate-in fade-in zoom-in-95 duration-300">
                <button onClick={() => { setIsAdminAuthOpen(false); setAdminError(null); setAdminPassword(''); }} className="absolute top-6 right-8 text-slate-500 hover:text-white transition-colors">
@@ -567,7 +565,6 @@ const App: React.FC = () => {
               <p>Data Accuracy Verified by Gemini Grounding</p>
             </div>
           </div>
-          {/* Secondary Admin trigger for convenience */}
           <button 
             onClick={() => setIsAdminAuthOpen(true)}
             className="text-[8px] text-slate-800 hover:text-slate-600 transition-colors uppercase tracking-widest font-black"
