@@ -66,10 +66,10 @@ const App: React.FC = () => {
       setProgress(0);
       setSimulatedLeads(0);
       const messages = [
-        "Connecting to Search Grounding API...",
-        "Identifying physical locations...",
-        "Verifying official contact profiles...",
-        "Finalizing verified lead list..."
+        "Connecting to Search Grounding Engine...",
+        "Identifying location data...",
+        "Verifying business credentials...",
+        "Formatting verified leads..."
       ];
       tickerIntervalRef.current = window.setInterval(() => {
         setTickerMessage(messages[Math.floor(Math.random() * messages.length)]);
@@ -115,6 +115,7 @@ const App: React.FC = () => {
       setQuotaExceeded(false);
       setError(null);
       setHasCustomKey(true);
+      // Optional: Refresh page or state to ensure new key is picked up
     } catch (e) {
       console.error("Key selection failed", e);
     }
@@ -145,16 +146,16 @@ const App: React.FC = () => {
         setLeads(processed);
         setLoading(false);
         if (processed.length === 0) {
-          setError(`No verified businesses found for "${searchCategories.join(", ")}" in ${searchCity}. Try searching for a broader category.`);
+          setError(`No verified businesses found for "${searchCategories.join(", ")}" in ${searchCity}. Please try a broader category.`);
         }
       }, 500);
     } catch (err: any) {
-      console.error("Lead Generation Failed:", err);
+      console.error("Search Logic Failure:", err);
       setLoading(false);
       if (err.message === "QUOTA_EXCEEDED") {
         setQuotaExceeded(true);
       } else {
-        setError(err.message || "An unexpected error occurred. Please try again.");
+        setError(err.message || "An unexpected error occurred during lead generation.");
       }
     }
   }, [userCoords]);
@@ -171,7 +172,7 @@ const App: React.FC = () => {
               <i className="fa-solid fa-bolt text-white text-3xl"></i>
             </div>
             <h1 className="text-4xl font-black text-white mb-3 tracking-tight">EasyLead</h1>
-            <p className="text-slate-400 font-medium">Professional Lead Generation Tool</p>
+            <p className="text-slate-400 font-medium">B2B Intelligence for India</p>
           </div>
 
           {loginError && (
@@ -230,7 +231,7 @@ const App: React.FC = () => {
             </div>
             <div>
               <h1 className="text-xl font-black text-white leading-none mb-1">EasyLead</h1>
-              <p className="text-[9px] text-slate-500 font-bold tracking-[0.2em] uppercase">Flash Intelligence</p>
+              <p className="text-[9px] text-slate-500 font-bold tracking-[0.2em] uppercase">Grounded Intelligence</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -239,13 +240,13 @@ const App: React.FC = () => {
               className="flex items-center gap-2.5 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition-all shadow-lg"
             >
               <i className="fa-solid fa-plus text-xs"></i>
-              <span>Search Leads</span>
+              <span>Start Search</span>
             </button>
             <button 
                 onClick={handleLogout}
                 className="w-11 h-11 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-500 hover:text-rose-500 transition-all"
               >
-                <i className="fa-solid fa-arrow-right-from-bracket"></i>
+                <i className="fa-solid fa-power-off"></i>
             </button>
           </div>
         </div>
@@ -257,66 +258,59 @@ const App: React.FC = () => {
             <div className="w-full max-w-2xl bg-slate-900/50 border border-slate-800/50 p-12 rounded-[3rem] text-center shadow-3xl flex flex-col items-center gap-8 animate-pulse">
               <div className="w-24 h-24 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
               <div className="space-y-4">
-                <h3 className="text-4xl font-black text-white tracking-tight">Searching Leads...</h3>
+                <h3 className="text-4xl font-black text-white tracking-tight">Gathering Leads...</h3>
                 <p className="text-slate-400 font-medium italic">{tickerMessage}</p>
                 <div className="h-3 w-full bg-slate-800 rounded-full overflow-hidden mt-6">
                   <div className="h-full bg-indigo-600 transition-all duration-300 ease-out" style={{ width: `${progress}%` }}></div>
                 </div>
                 <div className="flex justify-between w-full text-[10px] font-black text-slate-600 uppercase tracking-widest">
-                  <span>Powering Search Grounding</span>
-                  <span>{Math.round(progress)}% Complete</span>
+                  <span>Grounding via Google Search</span>
+                  <span>{Math.round(progress)}%</span>
                 </div>
               </div>
             </div>
           </div>
         ) : quotaExceeded ? (
-          <div className="min-h-[60vh] flex flex-col items-center justify-center text-center p-12 bg-indigo-600/5 border border-indigo-500/20 rounded-[3rem] shadow-2xl">
+          <div className="min-h-[60vh] flex flex-col items-center justify-center text-center p-12 bg-rose-600/5 border border-rose-500/20 rounded-[3rem] shadow-2xl animate-in zoom-in duration-500">
               <div className="w-24 h-24 bg-rose-600/20 border border-rose-500/40 rounded-3xl flex items-center justify-center mb-8">
                 <i className="fa-solid fa-triangle-exclamation text-rose-500 text-4xl"></i>
               </div>
-              <h3 className="text-3xl font-black text-white mb-4">API Key Limit Reached</h3>
-              <p className="text-slate-400 mb-8 max-w-md mx-auto leading-relaxed">
-                The current API key has no remaining quota or hasn't enabled the Generative AI API. To continue searching, please provide your own <b>Paid API Key</b>.
+              <h3 className="text-3xl font-black text-white mb-4">Quota Exceeded (429)</h3>
+              <p className="text-slate-400 mb-10 max-w-md mx-auto leading-relaxed">
+                Your current API project has reached its free limit. To fix this instantly, please link a <b>Paid API Key</b> from a project with billing enabled.
               </p>
               
-              <div className="bg-slate-900 border border-slate-800 p-8 rounded-3xl text-left max-w-lg mx-auto mb-10 space-y-4">
-                <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest flex items-center gap-2">
-                  <i className="fa-solid fa-lightbulb"></i> How to solve this immediately:
-                </h4>
-                <div className="text-xs text-slate-400 space-y-3 font-medium">
-                  <p>1. Go to <a href="https://aistudio.google.com" target="_blank" className="text-indigo-400 underline">AI Studio</a>.</p>
-                  <p>2. Create an API Key in a project with <b>Billing Enabled</b>.</p>
-                  <p>3. Click <b>"Use My Own API Key"</b> below and select it.</p>
-                </div>
-              </div>
-              
-              <div className="flex flex-col sm:flex-row gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-md">
                 <button 
                   onClick={handleSelectApiKey}
-                  className="px-12 py-5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black transition-all shadow-xl shadow-indigo-600/30 flex items-center gap-3"
+                  className="px-8 py-5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black transition-all shadow-xl shadow-indigo-600/30 flex items-center justify-center gap-3"
                 >
-                  <i className="fa-solid fa-key"></i> Use My Own API Key
+                  <i className="fa-solid fa-key"></i> Link Paid Key
                 </button>
                 <button 
                   onClick={() => { setQuotaExceeded(false); setError(null); }}
-                  className="px-10 py-5 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-black transition-all"
+                  className="px-8 py-5 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-black transition-all flex items-center justify-center gap-3"
                 >
-                  Try Again Later
+                  <i className="fa-solid fa-rotate-right"></i> Try Again
                 </button>
               </div>
+              
+              <p className="mt-10 text-[10px] text-slate-600 font-black uppercase tracking-[0.2em]">
+                Need help? <a href="https://aistudio.google.com" target="_blank" className="text-indigo-400 underline">Visit Google AI Studio</a>
+              </p>
           </div>
         ) : error ? (
            <div className="min-h-[50vh] flex flex-col items-center justify-center text-center p-10 bg-slate-900/30 border border-slate-800/50 rounded-[3rem]">
               <div className="w-20 h-20 bg-rose-500/10 border border-rose-500/30 rounded-3xl flex items-center justify-center mb-8">
-                <i className="fa-solid fa-circle-xmark text-rose-500 text-3xl"></i>
+                <i className="fa-solid fa-bug text-rose-500 text-3xl"></i>
               </div>
               <h3 className="text-2xl font-black text-white mb-4">Search Unsuccessful</h3>
-              <p className="text-slate-400 mb-10 max-w-lg mx-auto leading-relaxed">{error}</p>
+              <p className="text-slate-400 mb-10 max-w-lg mx-auto leading-relaxed text-sm">{error}</p>
               <button 
                 onClick={() => setIsSearchModalOpen(true)} 
-                className="px-10 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black transition-all"
+                className="px-10 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black transition-all shadow-lg"
               >
-                Refine Search
+                Change Search
               </button>
            </div>
         ) : leads.length > 0 ? (
@@ -324,12 +318,12 @@ const App: React.FC = () => {
             <div className="flex flex-col lg:flex-row justify-between items-end gap-6">
               <div className="space-y-2">
                 <h2 className="text-3xl font-black text-white">Results for <span className="text-indigo-500">{lastQuery?.categories.join(", ")}</span></h2>
-                <p className="text-slate-500 font-medium">Verified {leads.length} leads in {lastQuery?.city}</p>
+                <p className="text-slate-500 font-medium italic">Verified {leads.length} leads in {lastQuery?.city} using Grounded AI</p>
               </div>
               <div className="flex gap-3">
                 <button onClick={() => setViewMode('table')} className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${viewMode === 'table' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-500'}`}>Table View</button>
                 <button onClick={() => setViewMode('map')} className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${viewMode === 'map' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-500'}`}>Map View</button>
-                <button onClick={() => exportToCSV(leads)} className="px-5 py-2.5 bg-slate-800 text-slate-400 border border-slate-700 rounded-xl text-xs font-bold hover:text-white transition-colors">Export .CSV</button>
+                <button onClick={() => exportToCSV(leads)} className="px-5 py-2.5 bg-slate-800 text-slate-400 border border-slate-700 rounded-xl text-xs font-bold hover:text-white transition-colors">Export CSV</button>
               </div>
             </div>
             
@@ -342,17 +336,17 @@ const App: React.FC = () => {
             <div className="w-24 h-24 bg-slate-900 rounded-[2.5rem] flex items-center justify-center mb-10 border border-slate-800 shadow-2xl">
               <i className="fa-solid fa-bolt text-indigo-500 text-4xl"></i>
             </div>
-            <h2 className="text-4xl font-black text-white mb-4 tracking-tight">Verified Indian Leads</h2>
-            <p className="text-slate-500 max-w-md mx-auto mb-10 text-lg font-medium">Harness Gemini Flash Grounding to find accurate business data across 100+ cities.</p>
+            <h2 className="text-4xl font-black text-white mb-4 tracking-tight">Local Business Intelligence</h2>
+            <p className="text-slate-500 max-w-md mx-auto mb-10 text-lg font-medium leading-relaxed">Search for verified business leads across 100+ Indian cities using Gemini Grounding.</p>
             <button 
               onClick={() => setIsSearchModalOpen(true)}
               className="px-12 py-5 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-3xl transition-all shadow-2xl shadow-indigo-600/30 active:scale-95"
             >
-              Start New Search
+              Get Started
             </button>
             {hasCustomKey && (
-              <p className="mt-8 text-[10px] font-black text-emerald-500 uppercase tracking-widest bg-emerald-500/10 px-4 py-2 rounded-xl">
-                <i className="fa-solid fa-check-circle mr-2"></i> Custom API Key Active
+              <p className="mt-8 text-[10px] font-black text-emerald-500 uppercase tracking-widest bg-emerald-500/10 px-4 py-2 rounded-xl border border-emerald-500/20">
+                <i className="fa-solid fa-circle-check mr-2"></i> Custom Paid API Key In Use
               </p>
             )}
           </div>
@@ -360,7 +354,7 @@ const App: React.FC = () => {
       </main>
 
       <footer className="bg-slate-950 border-t border-slate-900 py-10 px-6 text-center text-slate-700 text-[10px] font-black uppercase tracking-widest mt-auto">
-        <p>© 2024 EasyLead Intelligence | High-Performance Search Grounding</p>
+        <p>© 2024 EasyLead AI | Verified B2B Lead Generation for India</p>
       </footer>
 
       <SearchModal 
