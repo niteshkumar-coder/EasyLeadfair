@@ -16,6 +16,7 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [quotaExceeded, setQuotaExceeded] = useState(false);
+  const [hasCustomKey, setHasCustomKey] = useState(false);
   const [leads, setLeads] = useState<BusinessLead[]>([]);
   const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [progress, setProgress] = useState(0);
@@ -35,6 +36,17 @@ const App: React.FC = () => {
   const progressIntervalRef = useRef<number | null>(null);
 
   useEffect(() => {
+    // Check for custom API Key on mount
+    const checkKeyStatus = async () => {
+      // @ts-ignore
+      if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+        // @ts-ignore
+        const hasKey = await window.aistudio.hasSelectedApiKey();
+        setHasCustomKey(hasKey);
+      }
+    };
+    checkKeyStatus();
+
     const savedUser = localStorage.getItem('easylead_user');
     if (savedUser) {
       try {
@@ -141,9 +153,9 @@ const App: React.FC = () => {
     try {
       // @ts-ignore
       await window.aistudio.openSelectKey();
-      // After selecting, we reset errors and let the user try again
       setQuotaExceeded(false);
       setError(null);
+      setHasCustomKey(true);
     } catch (e) {
       console.error("Key selection failed", e);
     }
@@ -386,34 +398,51 @@ const App: React.FC = () => {
             </div>
           </div>
         ) : quotaExceeded ? (
-          <div className="min-h-[50vh] flex flex-col items-center justify-center text-center p-12 bg-indigo-600/5 border border-indigo-500/20 rounded-[3rem] shadow-2xl">
+          <div className="min-h-[50vh] flex flex-col items-center justify-center text-center p-12 bg-indigo-600/5 border border-indigo-500/20 rounded-[3rem] shadow-2xl animate-in zoom-in-95 duration-500">
               <div className="w-24 h-24 bg-indigo-600/20 border border-indigo-500/40 rounded-3xl flex items-center justify-center mb-8">
                 <i className="fa-solid fa-gauge-high text-indigo-400 text-4xl"></i>
               </div>
-              <h3 className="text-3xl font-black text-white mb-4">API Quota Exceeded</h3>
+              <h3 className="text-3xl font-black text-white mb-4">API Quota Exceeded (429)</h3>
               <p className="text-slate-400 mb-6 max-w-md mx-auto leading-relaxed">
-                The free search quota for this model has been reached. To continue, please select a **Paid API Key** from your own Google Cloud project.
+                The daily search limit for the free project has been reached. To fix this and continue searching immediately, please select your own **Paid API Key**.
               </p>
-              <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest mb-10 bg-indigo-500/10 px-4 py-2 rounded-lg">
-                <i className="fa-solid fa-circle-info mr-2"></i> Ensure your project has billing enabled.
-              </p>
+              
+              <div className="space-y-4 mb-10">
+                <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl text-left max-w-lg mx-auto">
+                  <h4 className="text-xs font-black text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <i className="fa-solid fa-circle-question"></i> How to fix this?
+                  </h4>
+                  <ul className="text-[11px] text-slate-500 space-y-2 list-disc pl-4 font-medium">
+                    <li>Go to <a href="https://aistudio.google.com" target="_blank" className="text-indigo-400 underline">AI Studio</a> and create a new project.</li>
+                    <li>Enable **Billing** on that project (Google Cloud).</li>
+                    <li>Click the button below to link your key to this app.</li>
+                  </ul>
+                </div>
+              </div>
               
               <div className="flex flex-col sm:flex-row gap-4">
                 <button 
                   onClick={handleSelectApiKey}
-                  className="px-10 py-5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black transition-all shadow-xl shadow-indigo-600/20 flex items-center gap-3"
+                  className="px-10 py-5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black transition-all shadow-xl shadow-indigo-600/20 flex items-center gap-3 active:scale-95"
                 >
                   <i className="fa-solid fa-key"></i> Select Paid API Key
                 </button>
-                <a 
-                  href="https://ai.google.dev/gemini-api/docs/billing" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="px-10 py-5 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-black transition-all flex items-center gap-3"
+                <button 
+                  onClick={() => { setQuotaExceeded(false); setError(null); }}
+                  className="px-10 py-5 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-black transition-all flex items-center gap-3 active:scale-95"
                 >
-                  <i className="fa-solid fa-file-invoice-dollar"></i> Billing Info
-                </a>
+                  <i className="fa-solid fa-rotate-right"></i> Try Again
+                </button>
               </div>
+              
+              <a 
+                href="https://ai.google.dev/gemini-api/docs/billing" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="mt-8 text-[10px] font-black text-slate-700 hover:text-slate-500 transition-colors uppercase tracking-[0.3em]"
+              >
+                Learn about Gemini Billing <i className="fa-solid fa-external-link text-[8px] ml-1"></i>
+              </a>
           </div>
         ) : error ? (
            <div className="min-h-[50vh] flex flex-col items-center justify-center text-center p-10 bg-slate-900/30 border border-slate-800/50 rounded-[3rem]">
@@ -460,6 +489,11 @@ const App: React.FC = () => {
             >
               Start New Search
             </button>
+            {hasCustomKey && (
+              <p className="mt-6 text-[10px] font-black text-emerald-500 uppercase tracking-widest bg-emerald-500/10 px-4 py-2 rounded-xl">
+                <i className="fa-solid fa-check-circle mr-2"></i> Custom Paid API Key Active
+              </p>
+            )}
           </div>
         )}
       </main>
