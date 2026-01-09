@@ -25,18 +25,10 @@ const App: React.FC = () => {
   const [viewMode, setViewMode] = useState<'table' | 'map'>('table');
   const [lastQuery, setLastQuery] = useState<{ city: string; categories: string[] } | null>(null);
   
-  // Admin States
-  const [isAdminAuthOpen, setIsAdminAuthOpen] = useState(false);
-  const [adminPassword, setAdminPassword] = useState('');
-  const [isAdminMode, setIsAdminMode] = useState(false);
-  const [allUsers, setAllUsers] = useState<User[]>([]);
-  const [adminError, setAdminError] = useState<string | null>(null);
-
   const tickerIntervalRef = useRef<number | null>(null);
   const progressIntervalRef = useRef<number | null>(null);
 
   useEffect(() => {
-    // Check for custom API Key on mount
     const checkKeyStatus = async () => {
       // @ts-ignore
       if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
@@ -53,15 +45,6 @@ const App: React.FC = () => {
         setUser(JSON.parse(savedUser));
       } catch (e) {
         console.error("Failed to parse user", e);
-      }
-    }
-
-    const savedAllUsers = localStorage.getItem('easylead_all_users');
-    if (savedAllUsers) {
-      try {
-        setAllUsers(JSON.parse(savedAllUsers));
-      } catch (e) {
-        setAllUsers([]);
       }
     }
 
@@ -86,15 +69,14 @@ const App: React.FC = () => {
         "Connecting to Search Grounding API...",
         "Identifying physical locations...",
         "Verifying official contact profiles...",
-        "Compiling data intelligence reports...",
         "Finalizing verified lead list..."
       ];
       tickerIntervalRef.current = window.setInterval(() => {
         setTickerMessage(messages[Math.floor(Math.random() * messages.length)]);
       }, 1500);
       progressIntervalRef.current = window.setInterval(() => {
-        setProgress(prev => (prev >= 98 ? prev : prev + (prev < 50 ? 1 : 0.5)));
-        setSimulatedLeads(prev => (prev >= 15 ? prev : Math.random() > 0.8 ? prev + 1 : prev));
+        setProgress(prev => (prev >= 98 ? prev : prev + (prev < 50 ? 1.5 : 0.8)));
+        setSimulatedLeads(prev => (prev >= 12 ? prev : Math.random() > 0.8 ? prev + 1 : prev));
       }, 200);
     } else {
       if (tickerIntervalRef.current) clearInterval(tickerIntervalRef.current);
@@ -117,16 +99,6 @@ const App: React.FC = () => {
     const newUser = { name: authForm.name, email: authForm.email.toLowerCase() };
     setUser(newUser);
     localStorage.setItem('easylead_user', JSON.stringify(newUser));
-    const savedAllUsersStr = localStorage.getItem('easylead_all_users');
-    let currentLogs: User[] = [];
-    try {
-      currentLogs = savedAllUsersStr ? JSON.parse(savedAllUsersStr) : [];
-    } catch (e) {}
-    if (!currentLogs.some(u => u.email === newUser.email)) {
-      const updatedAll = [...currentLogs, newUser];
-      setAllUsers(updatedAll);
-      localStorage.setItem('easylead_all_users', JSON.stringify(updatedAll));
-    }
   };
 
   const handleLogout = () => {
@@ -134,19 +106,6 @@ const App: React.FC = () => {
     localStorage.removeItem('easylead_user');
     setAuthForm({ name: '', email: '' });
     setLoginError(null);
-    setIsAdminMode(false);
-  };
-
-  const handleAdminAuth = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (adminPassword === "Nitesh45090@") {
-      setIsAdminMode(true);
-      setIsAdminAuthOpen(false);
-      setAdminPassword('');
-      setAdminError(null);
-    } else {
-      setAdminError("Invalid Administrator Password");
-    }
   };
 
   const handleSelectApiKey = async () => {
@@ -190,7 +149,7 @@ const App: React.FC = () => {
         }
       }, 500);
     } catch (err: any) {
-      console.error("Search Error:", err);
+      console.error("Lead Generation Failed:", err);
       setLoading(false);
       if (err.message === "QUOTA_EXCEEDED") {
         setQuotaExceeded(true);
@@ -199,59 +158,6 @@ const App: React.FC = () => {
       }
     }
   }, [userCoords]);
-
-  if (isAdminMode) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex flex-col p-8">
-        <div className="max-w-4xl mx-auto w-full space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-rose-600 rounded-2xl flex items-center justify-center shadow-lg shadow-rose-600/20">
-                <i className="fa-solid fa-user-shield text-white text-xl"></i>
-              </div>
-              <div>
-                <h1 className="text-2xl font-black text-white">Admin Dashboard</h1>
-                <p className="text-xs text-slate-500 font-bold uppercase tracking-widest">User Access Logs</p>
-              </div>
-            </div>
-            <button 
-              onClick={() => setIsAdminMode(false)}
-              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black uppercase tracking-widest transition-all"
-            >
-              Return to Login
-            </button>
-          </div>
-
-          <div className="bg-slate-900/50 border border-slate-800 rounded-[2.5rem] overflow-hidden shadow-2xl">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-800 bg-slate-950/50">
-                  <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">#</th>
-                  <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">User Name</th>
-                  <th className="px-8 py-5 text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Verified Gmail</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/50">
-                {allUsers.length === 0 ? (
-                  <tr>
-                    <td colSpan={3} className="px-8 py-20 text-center text-slate-600 font-bold italic">No user records found.</td>
-                  </tr>
-                ) : (
-                  allUsers.map((u, i) => (
-                    <tr key={i} className="hover:bg-slate-800/30 transition-colors">
-                      <td className="px-8 py-5 text-sm font-black text-slate-700">{i + 1}</td>
-                      <td className="px-8 py-5 text-sm font-black text-white">{u.name}</td>
-                      <td className="px-8 py-5 text-sm font-black text-indigo-400">{u.email}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   if (!user) {
     return (
@@ -300,7 +206,6 @@ const App: React.FC = () => {
                 placeholder="rahul@gmail.com" 
                 className="w-full px-6 py-4 bg-slate-800/50 border border-slate-700/50 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all text-white placeholder:text-slate-600"
               />
-              <p className="mt-2 ml-1 text-[9px] font-bold text-slate-500 uppercase tracking-widest italic opacity-60">Must end with @gmail.com</p>
             </div>
 
             <button 
@@ -310,39 +215,6 @@ const App: React.FC = () => {
               Get Started
             </button>
           </form>
-
-          <div className="mt-10 flex flex-col items-center gap-6">
-            <button 
-              onClick={() => setIsAdminAuthOpen(true)}
-              className="text-[10px] font-black text-slate-700 hover:text-slate-400 transition-colors uppercase tracking-[0.4em] flex items-center gap-2 group"
-            >
-              <i className="fa-solid fa-lock text-[8px] opacity-40 group-hover:opacity-100 transition-opacity"></i>
-              System Admin
-            </button>
-          </div>
-
-          {isAdminAuthOpen && (
-            <div className="absolute inset-0 z-50 bg-slate-950/95 backdrop-blur-xl rounded-[2.5rem] flex flex-col items-center justify-center p-8 animate-in fade-in zoom-in-95 duration-300">
-               <button onClick={() => setIsAdminAuthOpen(false)} className="absolute top-6 right-8 text-slate-500 hover:text-white transition-colors">
-                 <i className="fa-solid fa-xmark text-lg"></i>
-               </button>
-               <h3 className="text-xl font-black text-white mb-6">Admin Verification</h3>
-               <form onSubmit={handleAdminAuth} className="w-full space-y-4">
-                 <input 
-                   type="password" 
-                   autoFocus
-                   value={adminPassword}
-                   onChange={(e) => setAdminPassword(e.target.value)}
-                   placeholder="Enter Password"
-                   className={`w-full bg-slate-900 border ${adminError ? 'border-rose-500/50' : 'border-slate-800'} rounded-2xl px-6 py-4 text-white text-center font-bold outline-none focus:ring-2 focus:ring-indigo-600 transition-all`}
-                 />
-                 {adminError && <p className="text-[10px] text-rose-500 font-black text-center uppercase tracking-widest">{adminError}</p>}
-                 <button type="submit" className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-2xl transition-all shadow-xl">
-                   Confirm Access
-                 </button>
-               </form>
-            </div>
-          )}
         </div>
       </div>
     );
@@ -358,7 +230,7 @@ const App: React.FC = () => {
             </div>
             <div>
               <h1 className="text-xl font-black text-white leading-none mb-1">EasyLead</h1>
-              <p className="text-[9px] text-slate-500 font-bold tracking-[0.2em] uppercase">Grounding Search AI</p>
+              <p className="text-[9px] text-slate-500 font-bold tracking-[0.2em] uppercase">Flash Intelligence</p>
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -382,72 +254,61 @@ const App: React.FC = () => {
       <main className="flex-1 max-w-[1600px] mx-auto w-full p-6 md:p-12 space-y-10">
         {loading ? (
           <div className="min-h-[60vh] flex items-center justify-center">
-            <div className="w-full max-w-2xl bg-slate-900/50 border border-slate-800/50 p-12 rounded-[3rem] text-center shadow-3xl flex flex-col items-center gap-8">
+            <div className="w-full max-w-2xl bg-slate-900/50 border border-slate-800/50 p-12 rounded-[3rem] text-center shadow-3xl flex flex-col items-center gap-8 animate-pulse">
               <div className="w-24 h-24 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
               <div className="space-y-4">
-                <h3 className="text-4xl font-black text-white tracking-tight">Generating Leads...</h3>
+                <h3 className="text-4xl font-black text-white tracking-tight">Searching Leads...</h3>
                 <p className="text-slate-400 font-medium italic">{tickerMessage}</p>
                 <div className="h-3 w-full bg-slate-800 rounded-full overflow-hidden mt-6">
                   <div className="h-full bg-indigo-600 transition-all duration-300 ease-out" style={{ width: `${progress}%` }}></div>
                 </div>
                 <div className="flex justify-between w-full text-[10px] font-black text-slate-600 uppercase tracking-widest">
-                  <span>Progress: {Math.round(progress)}%</span>
-                  <span>Detected: {simulatedLeads}</span>
+                  <span>Powering Search Grounding</span>
+                  <span>{Math.round(progress)}% Complete</span>
                 </div>
               </div>
             </div>
           </div>
         ) : quotaExceeded ? (
-          <div className="min-h-[50vh] flex flex-col items-center justify-center text-center p-12 bg-indigo-600/5 border border-indigo-500/20 rounded-[3rem] shadow-2xl animate-in zoom-in-95 duration-500">
-              <div className="w-24 h-24 bg-indigo-600/20 border border-indigo-500/40 rounded-3xl flex items-center justify-center mb-8">
-                <i className="fa-solid fa-gauge-high text-indigo-400 text-4xl"></i>
+          <div className="min-h-[60vh] flex flex-col items-center justify-center text-center p-12 bg-indigo-600/5 border border-indigo-500/20 rounded-[3rem] shadow-2xl">
+              <div className="w-24 h-24 bg-rose-600/20 border border-rose-500/40 rounded-3xl flex items-center justify-center mb-8">
+                <i className="fa-solid fa-triangle-exclamation text-rose-500 text-4xl"></i>
               </div>
-              <h3 className="text-3xl font-black text-white mb-4">API Quota Exceeded (429)</h3>
-              <p className="text-slate-400 mb-6 max-w-md mx-auto leading-relaxed">
-                The daily search limit for the free project has been reached. To fix this and continue searching immediately, please select your own **Paid API Key**.
+              <h3 className="text-3xl font-black text-white mb-4">API Key Limit Reached</h3>
+              <p className="text-slate-400 mb-8 max-w-md mx-auto leading-relaxed">
+                The current API key has no remaining quota or hasn't enabled the Generative AI API. To continue searching, please provide your own <b>Paid API Key</b>.
               </p>
               
-              <div className="space-y-4 mb-10">
-                <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl text-left max-w-lg mx-auto">
-                  <h4 className="text-xs font-black text-indigo-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                    <i className="fa-solid fa-circle-question"></i> How to fix this?
-                  </h4>
-                  <ul className="text-[11px] text-slate-500 space-y-2 list-disc pl-4 font-medium">
-                    <li>Go to <a href="https://aistudio.google.com" target="_blank" className="text-indigo-400 underline">AI Studio</a> and create a new project.</li>
-                    <li>Enable **Billing** on that project (Google Cloud).</li>
-                    <li>Click the button below to link your key to this app.</li>
-                  </ul>
+              <div className="bg-slate-900 border border-slate-800 p-8 rounded-3xl text-left max-w-lg mx-auto mb-10 space-y-4">
+                <h4 className="text-[10px] font-black text-indigo-400 uppercase tracking-widest flex items-center gap-2">
+                  <i className="fa-solid fa-lightbulb"></i> How to solve this immediately:
+                </h4>
+                <div className="text-xs text-slate-400 space-y-3 font-medium">
+                  <p>1. Go to <a href="https://aistudio.google.com" target="_blank" className="text-indigo-400 underline">AI Studio</a>.</p>
+                  <p>2. Create an API Key in a project with <b>Billing Enabled</b>.</p>
+                  <p>3. Click <b>"Use My Own API Key"</b> below and select it.</p>
                 </div>
               </div>
               
               <div className="flex flex-col sm:flex-row gap-4">
                 <button 
                   onClick={handleSelectApiKey}
-                  className="px-10 py-5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black transition-all shadow-xl shadow-indigo-600/20 flex items-center gap-3 active:scale-95"
+                  className="px-12 py-5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black transition-all shadow-xl shadow-indigo-600/30 flex items-center gap-3"
                 >
-                  <i className="fa-solid fa-key"></i> Select Paid API Key
+                  <i className="fa-solid fa-key"></i> Use My Own API Key
                 </button>
                 <button 
                   onClick={() => { setQuotaExceeded(false); setError(null); }}
-                  className="px-10 py-5 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-black transition-all flex items-center gap-3 active:scale-95"
+                  className="px-10 py-5 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-black transition-all"
                 >
-                  <i className="fa-solid fa-rotate-right"></i> Try Again
+                  Try Again Later
                 </button>
               </div>
-              
-              <a 
-                href="https://ai.google.dev/gemini-api/docs/billing" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="mt-8 text-[10px] font-black text-slate-700 hover:text-slate-500 transition-colors uppercase tracking-[0.3em]"
-              >
-                Learn about Gemini Billing <i className="fa-solid fa-external-link text-[8px] ml-1"></i>
-              </a>
           </div>
         ) : error ? (
            <div className="min-h-[50vh] flex flex-col items-center justify-center text-center p-10 bg-slate-900/30 border border-slate-800/50 rounded-[3rem]">
               <div className="w-20 h-20 bg-rose-500/10 border border-rose-500/30 rounded-3xl flex items-center justify-center mb-8">
-                <i className="fa-solid fa-triangle-exclamation text-rose-500 text-3xl"></i>
+                <i className="fa-solid fa-circle-xmark text-rose-500 text-3xl"></i>
               </div>
               <h3 className="text-2xl font-black text-white mb-4">Search Unsuccessful</h3>
               <p className="text-slate-400 mb-10 max-w-lg mx-auto leading-relaxed">{error}</p>
@@ -455,20 +316,20 @@ const App: React.FC = () => {
                 onClick={() => setIsSearchModalOpen(true)} 
                 className="px-10 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black transition-all"
               >
-                Modify Search Criteria
+                Refine Search
               </button>
            </div>
         ) : leads.length > 0 ? (
           <div className="w-full space-y-10 animate-in fade-in duration-700">
             <div className="flex flex-col lg:flex-row justify-between items-end gap-6">
               <div className="space-y-2">
-                <h2 className="text-3xl font-black text-white">Verified Leads for <span className="text-indigo-500">{lastQuery?.categories.join(", ")}</span></h2>
-                <p className="text-slate-500 font-medium">Found {leads.length} high-quality matches in {lastQuery?.city}</p>
+                <h2 className="text-3xl font-black text-white">Results for <span className="text-indigo-500">{lastQuery?.categories.join(", ")}</span></h2>
+                <p className="text-slate-500 font-medium">Verified {leads.length} leads in {lastQuery?.city}</p>
               </div>
               <div className="flex gap-3">
-                <button onClick={() => setViewMode('table')} className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${viewMode === 'table' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}>Table</button>
-                <button onClick={() => setViewMode('map')} className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${viewMode === 'map' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-900 text-slate-500'}`}>Map</button>
-                <button onClick={() => exportToCSV(leads)} className="px-5 py-2.5 bg-slate-900 text-slate-400 border border-slate-800 rounded-xl text-xs font-bold hover:text-white transition-colors">Export CSV</button>
+                <button onClick={() => setViewMode('table')} className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${viewMode === 'table' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-500'}`}>Table View</button>
+                <button onClick={() => setViewMode('map')} className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${viewMode === 'map' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-slate-500'}`}>Map View</button>
+                <button onClick={() => exportToCSV(leads)} className="px-5 py-2.5 bg-slate-800 text-slate-400 border border-slate-700 rounded-xl text-xs font-bold hover:text-white transition-colors">Export .CSV</button>
               </div>
             </div>
             
@@ -478,20 +339,20 @@ const App: React.FC = () => {
           </div>
         ) : (
           <div className="min-h-[60vh] flex flex-col items-center justify-center text-center">
-            <div className="w-24 h-24 bg-slate-900 rounded-[2.5rem] flex items-center justify-center mb-10 border border-slate-800 shadow-2xl animate-bounce">
+            <div className="w-24 h-24 bg-slate-900 rounded-[2.5rem] flex items-center justify-center mb-10 border border-slate-800 shadow-2xl">
               <i className="fa-solid fa-bolt text-indigo-500 text-4xl"></i>
             </div>
             <h2 className="text-4xl font-black text-white mb-4 tracking-tight">Verified Indian Leads</h2>
-            <p className="text-slate-500 max-w-md mx-auto mb-10 text-lg">Harness Gemini Search to find accurate business data across 100+ cities and 120+ categories.</p>
+            <p className="text-slate-500 max-w-md mx-auto mb-10 text-lg font-medium">Harness Gemini Flash Grounding to find accurate business data across 100+ cities.</p>
             <button 
               onClick={() => setIsSearchModalOpen(true)}
-              className="px-12 py-5 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-3xl transition-all shadow-2xl shadow-indigo-600/30"
+              className="px-12 py-5 bg-indigo-600 hover:bg-indigo-500 text-white font-black rounded-3xl transition-all shadow-2xl shadow-indigo-600/30 active:scale-95"
             >
               Start New Search
             </button>
             {hasCustomKey && (
-              <p className="mt-6 text-[10px] font-black text-emerald-500 uppercase tracking-widest bg-emerald-500/10 px-4 py-2 rounded-xl">
-                <i className="fa-solid fa-check-circle mr-2"></i> Custom Paid API Key Active
+              <p className="mt-8 text-[10px] font-black text-emerald-500 uppercase tracking-widest bg-emerald-500/10 px-4 py-2 rounded-xl">
+                <i className="fa-solid fa-check-circle mr-2"></i> Custom API Key Active
               </p>
             )}
           </div>
@@ -499,7 +360,7 @@ const App: React.FC = () => {
       </main>
 
       <footer className="bg-slate-950 border-t border-slate-900 py-10 px-6 text-center text-slate-700 text-[10px] font-black uppercase tracking-widest mt-auto">
-        <p>© 2024 EasyLead Intelligence | Powered by Gemini Grounded Search</p>
+        <p>© 2024 EasyLead Intelligence | High-Performance Search Grounding</p>
       </footer>
 
       <SearchModal 
